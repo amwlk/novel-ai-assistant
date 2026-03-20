@@ -1,0 +1,209 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  passwordHash  String
+  username      String
+  avatarUrl     String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  lastLogin     DateTime?
+  
+  novels        Novel[]
+  knowledgeBase KnowledgeBase[]
+  reminders     Reminder[]
+  exportTasks   ExportTask[]
+  personalStyle String?
+  
+  @@map("users")
+}
+
+model Novel {
+  id            String   @id @default(uuid())
+  userId        String
+  title         String
+  category      String
+  penName       String?
+  status        String   @default("draft")
+  totalChapters Int      @default(0)
+  totalWords    Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  metadata      Json?
+  
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  settings      Setting[]
+  chapters      Chapter[]
+  outlines      Outline[]
+  knowledgeBase KnowledgeBase[]
+  reminders     Reminder[]
+  exportTasks   ExportTask[]
+  
+  @@index([userId])
+  @@map("novels")
+}
+
+model Setting {
+  id        String   @id @default(uuid())
+  novelId   String
+  type      String
+  name      String
+  content   String   @db.Text
+  tags      String[]
+  metadata  Json?
+  version   Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  novel     Novel    @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  
+  @@unique([novelId, type, name, version])
+  @@index([novelId, type])
+  @@map("settings")
+}
+
+model Chapter {
+  id            String    @id @default(uuid())
+  novelId       String
+  chapterNumber Int
+  title         String
+  content       String?   @db.Text
+  wordCount     Int       @default(0)
+  status        String    @default("draft")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  publishedAt   DateTime?
+  metadata      Json?
+  
+  novel         Novel     @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  
+  @@unique([novelId, chapterNumber])
+  @@index([novelId, status])
+  @@map("chapters")
+}
+
+model Outline {
+  id        String   @id @default(uuid())
+  novelId   String
+  type      String
+  title     String
+  content   String   @db.Text
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  novel     Novel    @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  
+  @@index([novelId])
+  @@map("outlines")
+}
+
+model KnowledgeBase {
+  id        String   @id @default(uuid())
+  userId    String
+  novelId   String?
+  type      String
+  content   String   @db.Text
+  tags      String[]
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  novel     Novel?   @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  
+  @@index([userId, novelId])
+  @@map("knowledge_base")
+}
+
+model Reminder {
+  id        String   @id @default(uuid())
+  userId    String
+  novelId   String?
+  type      String
+  severity  String   @default("medium")
+  title     String
+  message   String   @db.Text
+  details   Json?
+  status    String   @default("unread")
+  createdAt DateTime @default(now())
+  resolvedAt DateTime?
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  novel     Novel?   @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  
+  @@index([userId, status])
+  @@map("reminders")
+}
+
+model ExportTask {
+  id          String    @id @default(uuid())
+  userId      String
+  novelId     String?
+  type        String
+  format      String
+  options     Json?
+  status      String    @default("pending")
+  result      Json?
+  error       String?   @db.Text
+  progress    Int       @default(0)
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+  
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  novel       Novel?    @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@map("export_tasks")
+}
+
+model TaskQueue {
+  id          String   @id @default(uuid())
+  name        String
+  type        String
+  priority    Int      @default(0)
+  status      String   @default("pending")
+  concurrency Int      @default(1)
+  retryCount  Int      @default(0)
+  maxRetries  Int      @default(3)
+  timeout     Int      @default(300)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  tasks       Task[]
+  
+  @@map("task_queue")
+}
+
+model Task {
+  id          String   @id @default(uuid())
+  queueId     String
+  type        String
+  status      String   @default("pending")
+  priority    Int      @default(0)
+  payload     Json?
+  result      Json?
+  error       String?  @db.Text
+  retryCount  Int      @default(0)
+  maxRetries  Int      @default(3)
+  timeout     Int      @default(300)
+  progress    Int      @default(0)
+  createdAt   DateTime @default(now())
+  startedAt   DateTime?
+  completedAt DateTime?
+  logs        Json?
+  
+  queue       TaskQueue @relation(fields: [queueId], references: [id], onDelete: Cascade)
+  
+  @@index([queueId, status])
+  @@map("tasks")
+}
